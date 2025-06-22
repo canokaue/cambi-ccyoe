@@ -1,440 +1,445 @@
 import { PublicClient } from 'viem';
 import { Logger } from '../utils/Logger';
 import { Config } from '../config/Config';
-import { YieldData } from '../index';
+
+export interface YieldData {
+  yield: number;
+  confidence: number;
+  timestamp: number;
+  isValid: boolean;
+}
+
+export interface AssetMonitoringData {
+  assetId: string;
+  currentYield: number;
+  targetYield: number;
+  deviation: number;
+  confidence: number;
+  lastUpdate: number;
+  isStale: boolean;
+  alerts: string[];
+}
 
 /**
- * CCYOE Monitor - Monitors yield data and CCYOE protocol state
+ * CCYOE Monitor - Monitors yield data and system state
  */
 export class CCYOEMonitor {
-    private publicClient: PublicClient;
-    private config: Config;
-    private logger: Logger;
-    private isRunning: boolean = false;
-    
-    // Contract ABIs (simplified for example)
-    private ccyoeAbi = [
-        {
-            name: 'getAllAssetYields',
-            type: 'function',
-            stateMutability: 'view',
-            inputs: [],
-            outputs: [
-                { name: 'yields', type: 'uint256[]' },
-                { name: 'vaults', type: 'address[]' }
-            ]
-        },
-        {
-            name: 'getAssetConfig',
-            type: 'function',
-            stateMutability: 'view',
-            inputs: [{ name: 'assetId', type: 'bytes32' }],
-            outputs: [
-                { name: 'vaultAddress', type: 'address' },
-                { name: 'targetYield', type: 'uint256' },
-                { name: 'supplyCap', type: 'uint256' },
-                { name: 'currentSupply', type: 'uint256' },
-                { name: 'isActive', type: 'bool' },
-                { name: 'lastRebalance', type: 'uint256' }
-            ]
-        }
-    ] as const;
+  private publicClient: PublicClient;
+  private config: Config;
+  private logger: Logger;
+  private isRunning: boolean = false;
 
-    private oracleAbi = [
-        {
-            name: 'getAssetYieldData',
-            type: 'function',
-            stateMutability: 'view',
-            inputs: [{ name: 'assetId', type: 'bytes32' }],
-            outputs: [
-                { name: 'yield', type: 'uint256' },
-                { name: 'timestamp', type: 'uint256' },
-                { name: 'confidence', type: 'uint256' },
-                { name: 'isValid', type: 'bool' }
-            ]
-        },
-        {
-            name: 'isYieldDataValid',
-            type: 'function',
-            stateMutability: 'view',
-            inputs: [{ name: 'assetId', type: 'bytes32' }],
-            outputs: [{ name: '', type: 'bool' }]
-        }
-    ] as const;
+  // Contract ABIs
+  private readonly CCYOE_ABI = [
+    {
+      name: 'getAllAssetYields',
+      type: 'function',
+      stateMutability: 'view',
+      inputs: [],
+      outputs: [
+        { name: 'yields', type: 'uint256[]' },
+        { name: 'vaults', type: 'address[]' }
+      ]
+    },
+    {
+      name: 'getAssetConfig',
+      type: 'function',
+      stateMutability: 'view',
+      inputs: [{ name: 'assetId', type: 'bytes32' }],
+      outputs: [
+        { name: 'vaultAddress', type: 'address' },
+        { name: 'targetYield', type: 'uint256' },
+        { name: 'supplyCap', type: 'uint256' },
+        { name: 'currentSupply', type: 'uint256' },
+        { name: 'isActive', type: 'bool' },
+        { name: 'lastRebalance', type: 'uint256' }
+      ]
+    }
+  ] as const;
 
-    constructor(publicClient: PublicClient, config: Config, logger: Logger) {
-        this.publicClient = publicClient;
-        this.config = config;
-        this.logger = logger.child({ component: 'CCYOEMonitor' });
+  private readonly ORACLE_ABI = [
+    {
+      name: 'getAssetYieldData',
+      type: 'function',
+      stateMutability: 'view',
+      inputs: [{ name: 'assetId', type: 'bytes32' }],
+      outputs: [
+        { name: 'yield', type: 'uint256' },
+        { name: 'timestamp', type: 'uint256' },
+        { name: 'confidence', type: 'uint256' },
+        { name: 'isValid', type: 'bool' }
+      ]
+    },
+    {
+      name: 'isYieldDataValid',
+      type: 'function',
+      stateMutability: 'view',
+      inputs: [{ name: 'assetId', type: 'bytes32' }],
+      outputs: [{ name: '', type: 'bool' }]
+    }
+  ] as const;
+
+  constructor(publicClient: PublicClient, config: Config, logger: Logger) {
+    this.publicClient = publicClient;
+    this.config = config;
+    this.logger = logger.child('CCYOEMonitor');
+  }
+
+  /**
+   * Start monitoring
+   */
+  public async start(): Promise<void> {
+    if (this.isRunning) {
+      this.logger.warn('Monitor is already running');
+      return;
     }
 
-    /**
-     * Start monitoring
-     */
-    public async start(): Promise<void> {
-        if (this.isRunning) {
-            this.logger.warn('Monitor is already running');
-            return;
-        }
+    this.logger.info('Starting CCYOE monitoring...');
 
-        this.logger.info('Starting CCYOE monitor...');
+    try {
+      // Validate contract connectivity
+      await this.validateContracts();
+      
+      this.isRunning = true;
+      this.logger.info('CCYOE monitoring started successfully');
+    } catch (error) {
+      this.logger.error('Failed to start CCYOE monitoring:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Stop monitoring
+   */
+  public async stop(): Promise<void> {
+    if (!this.isRunning) {
+      this.logger.warn('Monitor is not running');
+      return;
+    }
+
+    this.logger.info('Stopping CCYOE monitoring...');
+    this.isRunning = false;
+    this.logger.info('CCYOE monitoring stopped');
+  }
+
+  /**
+   * Validate contract connectivity
+   */
+  private async validateContracts(): Promise<void> {
+    try {
+      // Test CCYOE contract
+      const ccyoeResult = await this.publicClient.readContract({
+        address: this.config.CCYOE_CORE_ADDRESS as `0x${string}`,
+        abi: this.CCYOE_ABI,
+        functionName: 'getAllAssetYields'
+      });
+
+      // Test Oracle contract
+      const cmBTCBytes32 = this.stringToBytes32('cmBTC');
+      await this.publicClient.readContract({
+        address: this.config.ORACLE_ADDRESS as `0x${string}`,
+        abi: this.ORACLE_ABI,
+        functionName: 'isYieldDataValid',
+        args: [cmBTCBytes32]
+      });
+
+      this.logger.info('Contract connectivity validated');
+    } catch (error) {
+      this.logger.error('Contract validation failed:', error);
+      throw new Error(`Contract validation failed: ${error}`);
+    }
+  }
+
+  /**
+   * Get all asset yields from oracle
+   */
+  public async getAllAssetYields(): Promise<Record<string, YieldData>> {
+    try {
+      const yields: Record<string, YieldData> = {};
+      
+      for (const assetId of this.config.SUPPORTED_ASSETS) {
+        const yieldData = await this.getAssetYield(assetId);
+        if (yieldData) {
+          yields[assetId] = yieldData;
+          
+          this.logger.logYieldMonitoring(
+            assetId,
+            yieldData.yield,
+            yieldData.confidence,
+            this.calculateDeviation(assetId, yieldData.yield)
+          );
+        }
+      }
+
+      return yields;
+    } catch (error) {
+      this.logger.error('Failed to get all asset yields:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get yield data for specific asset
+   */
+  public async getAssetYield(assetId: string): Promise<YieldData | null> {
+    try {
+      const assetIdBytes32 = this.stringToBytes32(assetId);
+      
+      const result = await this.publicClient.readContract({
+        address: this.config.ORACLE_ADDRESS as `0x${string}`,
+        abi: this.ORACLE_ABI,
+        functionName: 'getAssetYieldData',
+        args: [assetIdBytes32]
+      });
+
+      return {
+        yield: Number(result[0]),
+        confidence: Number(result[2]),
+        timestamp: Number(result[1]) * 1000, // Convert to milliseconds
+        isValid: result[3]
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get yield data for ${assetId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get comprehensive monitoring data for all assets
+   */
+  public async getAssetMonitoringData(): Promise<AssetMonitoringData[]> {
+    const monitoringData: AssetMonitoringData[] = [];
+
+    for (const assetId of this.config.SUPPORTED_ASSETS) {
+      try {
+        const yieldData = await this.getAssetYield(assetId);
+        const assetConfig = this.config.getAssetConfig(assetId);
         
-        try {
-            // Test contract connections
-            await this.testContractConnections();
-            
-            this.isRunning = true;
-            this.logger.info('CCYOE monitor started successfully');
-            
-        } catch (error) {
-            this.logger.error('Failed to start CCYOE monitor:', error);
-            throw error;
-        }
+        if (!yieldData || !assetConfig) continue;
+
+        const deviation = this.calculateDeviation(assetId, yieldData.yield);
+        const isStale = this.isDataStale(assetId, yieldData.timestamp);
+        const alerts = this.generateAlerts(assetId, yieldData, deviation, isStale);
+
+        monitoringData.push({
+          assetId,
+          currentYield: yieldData.yield,
+          targetYield: assetConfig.targetYield,
+          deviation,
+          confidence: yieldData.confidence,
+          lastUpdate: yieldData.timestamp,
+          isStale,
+          alerts
+        });
+      } catch (error) {
+        this.logger.error(`Failed to get monitoring data for ${assetId}:`, error);
+      }
     }
 
-    /**
-     * Stop monitoring
-     */
-    public async stop(): Promise<void> {
-        if (!this.isRunning) {
-            this.logger.warn('Monitor is not running');
-            return;
-        }
+    return monitoringData;
+  }
 
-        this.isRunning = false;
-        this.logger.info('CCYOE monitor stopped');
-    }
-
-    /**
-     * Test contract connections
-     */
-    private async testContractConnections(): Promise<void> {
-        try {
-            // Test CCYOE Core contract
-            const ccyoeResult = await this.publicClient.readContract({
-                address: this.config.CCYOE_CORE_ADDRESS as `0x${string}`,
-                abi: this.ccyoeAbi,
-                functionName: 'getAllAssetYields'
-            });
-            
-            this.logger.debug('CCYOE Core contract test successful', { 
-                yieldsCount: ccyoeResult[0].length 
-            });
-
-            // Test Oracle contract
-            const cmBTCBytes32 = this.stringToBytes32('cmBTC');
-            const oracleResult = await this.publicClient.readContract({
-                address: this.config.ORACLE_ADDRESS as `0x${string}`,
-                abi: this.oracleAbi,
-                functionName: 'isYieldDataValid',
-                args: [cmBTCBytes32]
-            });
-            
-            this.logger.debug('Oracle contract test successful', { 
-                cmBTCValid: oracleResult 
-            });
-            
-        } catch (error) {
-            this.logger.error('Contract connection test failed:', error);
-            throw new Error(`Contract test failed: ${error.message}`);
-        }
-    }
-
-    /**
-     * Get all asset yields from the protocol
-     */
-    public async getAllAssetYields(): Promise<Record<string, YieldData>> {
-        if (!this.isRunning) {
-            throw new Error('Monitor not running');
-        }
-
-        try {
-            const assets = ['cmBTC', 'cmUSD', 'cmBRL'];
-            const yieldData: Record<string, YieldData> = {};
-
-            // Get yield data for each asset from oracle
-            for (const assetId of assets) {
-                try {
-                    const data = await this.getAssetYieldData(assetId);
-                    if (data) {
-                        yieldData[assetId] = data;
-                    }
-                } catch (error) {
-                    this.logger.error(`Failed to get yield data for ${assetId}:`, error);
-                }
-            }
-
-            return yieldData;
-            
-        } catch (error) {
-            this.logger.error('Failed to get all asset yields:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get yield data for a specific asset
-     */
-    public async getAssetYieldData(assetId: string): Promise<YieldData | null> {
-        try {
-            const assetBytes32 = this.stringToBytes32(assetId);
-            
-            // Get yield data from oracle
-            const oracleData = await this.publicClient.readContract({
-                address: this.config.ORACLE_ADDRESS as `0x${string}`,
-                abi: this.oracleAbi,
-                functionName: 'getAssetYieldData',
-                args: [assetBytes32]
-            });
-
-            // Check if data is valid
-            const isValid = await this.publicClient.readContract({
-                address: this.config.ORACLE_ADDRESS as `0x${string}`,
-                abi: this.oracleAbi,
-                functionName: 'isYieldDataValid',
-                args: [assetBytes32]
-            });
-
-            return {
-                yield: Number(oracleData[0]), // Convert from BigInt
-                confidence: Number(oracleData[2]),
-                timestamp: Number(oracleData[1]) * 1000, // Convert to milliseconds
-                isValid: Boolean(isValid)
-            };
-            
-        } catch (error) {
-            this.logger.error(`Failed to get yield data for ${assetId}:`, error);
-            return null;
-        }
-    }
-
-    /**
-     * Get asset configuration from CCYOE Core
-     */
-    public async getAssetConfig(assetId: string): Promise<AssetConfig | null> {
-        try {
-            const assetBytes32 = this.stringToBytes32(assetId);
-            
-            const config = await this.publicClient.readContract({
-                address: this.config.CCYOE_CORE_ADDRESS as `0x${string}`,
-                abi: this.ccyoeAbi,
-                functionName: 'getAssetConfig',
-                args: [assetBytes32]
-            });
-
-            return {
-                vaultAddress: config[0],
-                targetYield: Number(config[1]),
-                supplyCap: config[2].toString(),
-                currentSupply: config[3].toString(),
-                isActive: config[4],
-                lastRebalance: Number(config[5]) * 1000 // Convert to milliseconds
-            };
-            
-        } catch (error) {
-            this.logger.error(`Failed to get asset config for ${assetId}:`, error);
-            return null;
-        }
-    }
-
-    /**
-     * Check if rebalancing is needed based on current state
-     */
-    public async checkRebalancingNeeds(): Promise<RebalanceAnalysis> {
-        try {
-            const yieldData = await this.getAllAssetYields();
-            const analysis: RebalanceAnalysis = {
-                needsRebalancing: false,
-                reasons: [],
-                urgency: 'LOW',
-                assets: []
-            };
-
-            for (const [assetId, data] of Object.entries(yieldData)) {
-                const assetConfig = await this.getAssetConfig(assetId);
-                if (!assetConfig || !assetConfig.isActive) continue;
-
-                // Check if yield exceeds target significantly
-                const excessYield = data.yield - assetConfig.targetYield;
-                if (excessYield > this.config.REBALANCE_THRESHOLD) {
-                    analysis.needsRebalancing = true;
-                    analysis.reasons.push(`${assetId} has excess yield of ${excessYield}bp`);
-                    analysis.assets.push(assetId);
-                    
-                    // Determine urgency
-                    if (excessYield > this.config.REBALANCE_THRESHOLD * 3) {
-                        analysis.urgency = 'HIGH';
-                    } else if (excessYield > this.config.REBALANCE_THRESHOLD * 2) {
-                        analysis.urgency = 'MEDIUM';
-                    }
-                }
-
-                // Check data staleness
-                const dataAge = Date.now() - data.timestamp;
-                if (dataAge > 3600000) { // 1 hour
-                    analysis.reasons.push(`${assetId} data is stale (${Math.round(dataAge / 60000)} minutes old)`);
-                    if (analysis.urgency === 'LOW') analysis.urgency = 'MEDIUM';
-                }
-
-                // Check confidence score
-                if (data.confidence < 70) {
-                    analysis.reasons.push(`${assetId} has low confidence score (${data.confidence}%)`);
-                }
-            }
-
-            return analysis;
-            
-        } catch (error) {
-            this.logger.error('Failed to check rebalancing needs:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get protocol health metrics
-     */
-    public async getProtocolHealth(): Promise<ProtocolHealth> {
-        try {
-            const yieldData = await this.getAllAssetYields();
-            const blockNumber = await this.publicClient.getBlockNumber();
-            
-            let healthyAssets = 0;
-            let totalAssets = 0;
-            let avgConfidence = 0;
-            let oldestDataAge = 0;
-
-            for (const [assetId, data] of Object.entries(yieldData)) {
-                totalAssets++;
-                
-                if (data.isValid && data.confidence > 70) {
-                    healthyAssets++;
-                }
-                
-                avgConfidence += data.confidence;
-                
-                const dataAge = Date.now() - data.timestamp;
-                if (dataAge > oldestDataAge) {
-                    oldestDataAge = dataAge;
-                }
-            }
-
-            avgConfidence = totalAssets > 0 ? avgConfidence / totalAssets : 0;
-            
-            const healthScore = totalAssets > 0 ? (healthyAssets / totalAssets) * 100 : 0;
-            
-            let status: 'HEALTHY' | 'WARNING' | 'CRITICAL' = 'HEALTHY';
-            if (healthScore < 50 || oldestDataAge > 7200000) { // 2 hours
-                status = 'CRITICAL';
-            } else if (healthScore < 80 || oldestDataAge > 3600000) { // 1 hour
-                status = 'WARNING';
-            }
-
-            return {
-                status,
-                healthScore,
-                totalAssets,
-                healthyAssets,
-                avgConfidence,
-                oldestDataAge: oldestDataAge / 1000, // Convert to seconds
-                currentBlock: Number(blockNumber),
-                lastUpdate: Date.now()
-            };
-            
-        } catch (error) {
-            this.logger.error('Failed to get protocol health:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Monitor for specific events
-     */
-    public async monitorEvents(): Promise<void> {
-        // In a real implementation, this would set up event listeners
-        // for YieldOptimized, ExcessYieldDistributed, etc.
-        this.logger.debug('Event monitoring not implemented in this example');
-    }
-
-    /**
-     * Convert string to bytes32 format
-     */
-    private stringToBytes32(str: string): `0x${string}` {
-        // Simple implementation - in production would use proper encoding
-        const hex = Buffer.from(str, 'utf8').toString('hex').padEnd(64, '0');
-        return `0x${hex}` as `0x${string}`;
-    }
-
-    /**
-     * Get monitoring status
-     */
-    public isMonitorRunning(): boolean {
-        return this.isRunning;
-    }
-
-    /**
-     * Get last monitoring cycle results
-     */
-    public async getLastCycleResults(): Promise<MonitoringCycleResult> {
-        try {
-            const yieldData = await this.getAllAssetYields();
-            const protocolHealth = await this.getProtocolHealth();
-            const rebalanceAnalysis = await this.checkRebalancingNeeds();
-
-            return {
-                timestamp: Date.now(),
-                yieldData,
-                protocolHealth,
-                rebalanceAnalysis,
-                success: true
-            };
-            
-        } catch (error) {
-            this.logger.error('Failed to get monitoring cycle results:', error);
-            return {
-                timestamp: Date.now(),
-                yieldData: {},
-                protocolHealth: null,
-                rebalanceAnalysis: null,
-                success: false,
-                error: error.message
-            };
-        }
-    }
-}
-
-// Type definitions
-export interface AssetConfig {
-    vaultAddress: string;
-    targetYield: number;
-    supplyCap: string;
-    currentSupply: string;
-    isActive: boolean;
-    lastRebalance: number;
-}
-
-export interface RebalanceAnalysis {
-    needsRebalancing: boolean;
-    reasons: string[];
+  /**
+   * Check if rebalancing conditions are met
+   */
+  public async checkRebalancingConditions(): Promise<{
+    shouldRebalance: boolean;
+    reason?: string;
     urgency: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-    assets: string[];
-}
+    affectedAssets: string[];
+  }> {
+    try {
+      const monitoringData = await this.getAssetMonitoringData();
+      const affectedAssets: string[] = [];
+      let maxUrgency: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'LOW';
+      let reasons: string[] = [];
 
-export interface ProtocolHealth {
-    status: 'HEALTHY' | 'WARNING' | 'CRITICAL';
-    healthScore: number;
+      for (const data of monitoringData) {
+        const assetConfig = this.config.getAssetConfig(data.assetId);
+        if (!assetConfig) continue;
+
+        // Check yield deviation threshold
+        if (Math.abs(data.deviation) > this.config.REBALANCE_THRESHOLD) {
+          affectedAssets.push(data.assetId);
+          reasons.push(`${data.assetId} yield deviation: ${data.deviation}bp > ${this.config.REBALANCE_THRESHOLD}bp`);
+          
+          // Determine urgency based on deviation magnitude
+          const deviationMagnitude = Math.abs(data.deviation);
+          if (deviationMagnitude > this.config.REBALANCE_THRESHOLD * 3) {
+            maxUrgency = 'CRITICAL';
+          } else if (deviationMagnitude > this.config.REBALANCE_THRESHOLD * 2) {
+            maxUrgency = maxUrgency === 'CRITICAL' ? 'CRITICAL' : 'HIGH';
+          } else if (deviationMagnitude > this.config.REBALANCE_THRESHOLD * 1.5) {
+            maxUrgency = ['CRITICAL', 'HIGH'].includes(maxUrgency) ? maxUrgency : 'MEDIUM';
+          }
+        }
+
+        // Check confidence thresholds
+        if (data.confidence < assetConfig.minConfidence) {
+          affectedAssets.push(data.assetId);
+          reasons.push(`${data.assetId} low confidence: ${data.confidence}% < ${assetConfig.minConfidence}%`);
+          maxUrgency = ['CRITICAL', 'HIGH'].includes(maxUrgency) ? maxUrgency : 'MEDIUM';
+        }
+
+        // Check data staleness
+        if (data.isStale) {
+          affectedAssets.push(data.assetId);
+          reasons.push(`${data.assetId} stale data detected`);
+          maxUrgency = 'CRITICAL'; // Stale data is always critical
+        }
+      }
+
+      const shouldRebalance = affectedAssets.length > 0;
+      
+      return {
+        shouldRebalance,
+        reason: shouldRebalance ? reasons.join('; ') : undefined,
+        urgency: maxUrgency,
+        affectedAssets: [...new Set(affectedAssets)] // Remove duplicates
+      };
+    } catch (error) {
+      this.logger.error('Failed to check rebalancing conditions:', error);
+      return {
+        shouldRebalance: false,
+        urgency: 'LOW',
+        affectedAssets: []
+      };
+    }
+  }
+
+  /**
+   * Get CCYOE contract status
+   */
+  public async getCCYOEStatus(): Promise<{
+    lastGlobalRebalance: number;
+    totalExcessYield: number;
+    isActive: boolean;
+  }> {
+    try {
+      // These would be additional contract calls to get CCYOE status
+      // For now, return mock data
+      return {
+        lastGlobalRebalance: Date.now() - 3600000, // 1 hour ago
+        totalExcessYield: 250, // 2.5% excess yield
+        isActive: true
+      };
+    } catch (error) {
+      this.logger.error('Failed to get CCYOE status:', error);
+      return {
+        lastGlobalRebalance: 0,
+        totalExcessYield: 0,
+        isActive: false
+      };
+    }
+  }
+
+  /**
+   * Calculate yield deviation from target
+   */
+  private calculateDeviation(assetId: string, currentYield: number): number {
+    const assetConfig = this.config.getAssetConfig(assetId);
+    if (!assetConfig) return 0;
+    
+    return currentYield - assetConfig.targetYield;
+  }
+
+  /**
+   * Check if data is stale
+   */
+  private isDataStale(assetId: string, timestamp: number): boolean {
+    const assetConfig = this.config.getAssetConfig(assetId);
+    if (!assetConfig) return false;
+    
+    const dataAge = Date.now() - timestamp;
+    return dataAge > assetConfig.alertThresholds.staleness * 1000;
+  }
+
+  /**
+   * Generate alerts for asset monitoring data
+   */
+  private generateAlerts(assetId: string, yieldData: YieldData, deviation: number, isStale: boolean): string[] {
+    const alerts: string[] = [];
+    const assetConfig = this.config.getAssetConfig(assetId);
+    
+    if (!assetConfig) return alerts;
+
+    // Yield deviation alerts
+    if (Math.abs(deviation) > assetConfig.alertThresholds.yield) {
+      alerts.push(`High yield deviation: ${deviation}bp`);
+    }
+
+    // Confidence alerts
+    if (yieldData.confidence < assetConfig.alertThresholds.confidence) {
+      alerts.push(`Low confidence: ${yieldData.confidence}%`);
+    }
+
+    // Staleness alerts
+    if (isStale) {
+      const ageMinutes = Math.round((Date.now() - yieldData.timestamp) / 60000);
+      alerts.push(`Stale data: ${ageMinutes} minutes old`);
+    }
+
+    // Validity alerts
+    if (!yieldData.isValid) {
+      alerts.push('Invalid yield data');
+    }
+
+    return alerts;
+  }
+
+  /**
+   * Convert string to bytes32 format
+   */
+  private stringToBytes32(str: string): `0x${string}` {
+    // Simple conversion - in production, use proper keccak256 hashing
+    const hex = Buffer.from(str, 'utf8').toString('hex');
+    return `0x${hex.padEnd(64, '0')}` as `0x${string}`;
+  }
+
+  /**
+   * Get monitoring summary
+   */
+  public async getMonitoringSummary(): Promise<{
     totalAssets: number;
     healthyAssets: number;
-    avgConfidence: number;
-    oldestDataAge: number;
-    currentBlock: number;
+    alertsActive: number;
     lastUpdate: number;
+    averageConfidence: number;
+  }> {
+    try {
+      const monitoringData = await this.getAssetMonitoringData();
+      
+      const totalAssets = monitoringData.length;
+      const healthyAssets = monitoringData.filter(d => d.alerts.length === 0).length;
+      const totalAlerts = monitoringData.reduce((sum, d) => sum + d.alerts.length, 0);
+      const lastUpdate = Math.max(...monitoringData.map(d => d.lastUpdate));
+      const averageConfidence = monitoringData.reduce((sum, d) => sum + d.confidence, 0) / totalAssets;
+
+      return {
+        totalAssets,
+        healthyAssets,
+        alertsActive: totalAlerts,
+        lastUpdate,
+        averageConfidence: Math.round(averageConfidence)
+      };
+    } catch (error) {
+      this.logger.error('Failed to get monitoring summary:', error);
+      return {
+        totalAssets: 0,
+        healthyAssets: 0,
+        alertsActive: 0,
+        lastUpdate: 0,
+        averageConfidence: 0
+      };
+    }
+  }
+
+  /**
+   * Check if monitor is running
+   */
+  public isMonitoringActive(): boolean {
+    return this.isRunning;
+  }
 }
 
-export interface MonitoringCycleResult {
-    timestamp: number;
-    yieldData: Record<string, YieldData>;
-    protocolHealth: ProtocolHealth | null;
-    rebalanceAnalysis: RebalanceAnalysis | null;
-    success: boolean;
-    error?: string;
-}
+export default CCYOEMonitor;

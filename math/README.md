@@ -1,4 +1,4 @@
-# Cambi CCYOE Analytics
+# Cambi CCYOE Math & Analytics
 
 Advanced analytics, backtesting, and mathematical modeling for the Cross-Collateral Yield Optimization Engine (CCYOE).
 

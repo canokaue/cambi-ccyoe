@@ -9,32 +9,28 @@ __version__ = "1.0.0"
 __author__ = "Cambi Protocol"
 __license__ = "MIT"
 
-# Core imports
+# Core imports (existing files)
 from .core.yield_analyzer import YieldAnalyzer
-from .core.backtester import CCYOEBacktester, BacktestResults
-from .core.optimizer import YieldOptimizer, OptimizationConfig
+from .core.backtester import CCYOEBacktester, BacktestResults, OptimizationConfig
+from .core.optimizer import YieldOptimizer
 
-# Data handling
+# Data handling (existing files)
 from .data.loaders import DataLoader, BrazilianDataLoader
 from .data.processors import YieldProcessor, DataValidator
 
-# Models
+# Models (existing files)
 from .models.optimization import OptimizationEngine
-from .models.risk_models import RiskCalculator, VaRCalculator
-from .models.correlation import CorrelationAnalyzer
 
-# Visualization
-from .visualization.plots import YieldPlotter, PerformancePlotter
-from .visualization.dashboards import CCYOEDashboard
-from .visualization.reports import AnalyticsReporter
+# Utilities (existing files)
+from .utils.metrics import PerformanceMetrics, RiskMetrics, VaRCalculator
+from .utils.constants import ASSET_IDS, BRAZILIAN_HOLIDAYS, ECONOMIC_INDICATORS
+from .utils.helpers import (
+    calculate_business_days, format_percentage, validate_data,
+    create_multi_asset_sample_data
+)
 
-# Utilities
-from .utils.metrics import PerformanceMetrics, RiskMetrics
-from .utils.constants import ASSET_IDS, BRAZILIAN_HOLIDAYS
-from .utils.helpers import calculate_business_days, format_percentage
-
-# Configuration
-from .config import AnalyticsConfig
+# Configuration (existing file)
+from .config import AnalyticsConfig, get_config
 
 __all__ = [
     # Core
@@ -52,26 +48,22 @@ __all__ = [
     
     # Models
     'OptimizationEngine',
-    'RiskCalculator',
-    'VaRCalculator',
-    'CorrelationAnalyzer',
-    
-    # Visualization
-    'YieldPlotter',
-    'PerformancePlotter',
-    'CCYOEDashboard',
-    'AnalyticsReporter',
     
     # Utilities
     'PerformanceMetrics',
     'RiskMetrics',
+    'VaRCalculator',
     'ASSET_IDS',
     'BRAZILIAN_HOLIDAYS',
+    'ECONOMIC_INDICATORS',
     'calculate_business_days',
     'format_percentage',
+    'validate_data',
+    'create_multi_asset_sample_data',
     
     # Configuration
-    'AnalyticsConfig'
+    'AnalyticsConfig',
+    'get_config'
 ]
 
 # Package-level configuration
