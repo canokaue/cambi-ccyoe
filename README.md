@@ -55,6 +55,28 @@ Python-based analysis and backtesting:
 - **Optimization studies**: Parameter tuning and strategy optimization
 - **Performance attribution**: Detailed yield source analysis
 
+### Optimization Studies
+
+Parameter optimization reveals optimal configuration:
+
+| Parameter | Baseline | Optimized | Impact |
+|-----------|----------|-----------|--------|
+| Under-supplied allocation | 40% | 42% | +0.3% Sharpe |
+| Strategic growth | 30% | 28% | +0.2% Return |
+| Rebalance threshold | 100bp | 85bp | +0.4% Frequency |
+| Min interval | 1 day | 1.2 days | -0.1% Costs |
+
+### Risk Analysis
+
+Stress testing under various scenarios:
+
+| Scenario | Baseline Return | Stressed Return | Resilience |
+|----------|----------------|-----------------|------------|
+| Market Crash (-30%) | 14.2% | 8.7% | 61% retention |
+| High Volatility (+50%) | 14.2% | 11.9% | 84% retention |
+| Correlation Breakdown | 14.2% | 13.1% | 92% retention |
+| Interest Rate Shock | 14.2% | 10.4% | 73% retention |
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -197,28 +219,6 @@ BacktestResults(
 )
 ```
 
-### Optimization Studies
-
-Parameter optimization reveals optimal configuration:
-
-| Parameter | Baseline | Optimized | Impact |
-|-----------|----------|-----------|--------|
-| Under-supplied allocation | 40% | 42% | +0.3% Sharpe |
-| Strategic growth | 30% | 28% | +0.2% Return |
-| Rebalance threshold | 100bp | 85bp | +0.4% Frequency |
-| Min interval | 1 day | 1.2 days | -0.1% Costs |
-
-### Risk Analysis
-
-Stress testing under various scenarios:
-
-| Scenario | Baseline Return | Stressed Return | Resilience |
-|----------|----------------|-----------------|------------|
-| Market Crash (-30%) | 14.2% | 8.7% | 61% retention |
-| High Volatility (+50%) | 14.2% | 11.9% | 84% retention |
-| Correlation Breakdown | 14.2% | 13.1% | 92% retention |
-| Interest Rate Shock | 14.2% | 10.4% | 73% retention |
-
 ## 🛠️ Development
 
 ### Contributing
@@ -230,7 +230,7 @@ Stress testing under various scenarios:
 
 ### Code Standards
 
-- **Solidity**: Follow best practices, comprehensive tests, gas optimization
+- **Solidity**: Follow best practices & check effect interaction pattern, comprehensive tests, gas optimization, Foundry stack, NatSpec format
 - **TypeScript**: Strict types, error handling, logging
 - **Python**: Type hints, docstrings, pytest for testing
 - **Documentation**: Clear README files for each component
@@ -292,15 +292,6 @@ Configurable alerts for:
 - **Warning**: High deviations, stale data  
 - **Info**: Successful rebalances, routine operations
 
-### Dashboard
-
-Access real-time dashboard at `http://localhost:3000/dashboard`:
-- Current yields and targets
-- Recent rebalancing activity  
-- System health status
-- Performance attribution
-
-## 🌐 API Documentation
 
 ### Bot API Endpoints
 
@@ -327,36 +318,15 @@ GET  /optimization        # Get optimization results
 GET  /reports/:date       # Daily/monthly reports
 ```
 
-## 🔮 Future Roadmap
-
-### Phase 1: Core Implementation (Q1 2024)
-- ✅ Smart contract deployment
-- ✅ Oracle system integration
-- ✅ Basic monitoring bot
-- ✅ Analytics framework
-
-### Phase 2: Enhancement (Q2 2024)
-- 🔄 Advanced optimization algorithms
-- 🔄 Multi-chain deployment
-- 🔄 Enhanced risk management
-- 🔄 Governance token integration
-
-### Phase 3: Expansion (Q3-Q4 2024)
-- 📋 Additional LatAm markets (Mexico, Colombia)
-- 📋 Institutional-grade features
-- 📋 Advanced derivatives and hedging
-- 📋 Cross-protocol yield optimization
-
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🤝 Community & Support
 
-- **Documentation**: [docs.cambi.com/ccyoe](https://docs.cambi.com/ccyoe)
-- **Discord**: [discord.gg/cambi](https://discord.gg/cambi)
-- **Telegram**: [@cambiprotocol](https://t.me/cambiprotocol)
-- **Twitter**: [@CambiProtocol](https://twitter.com/CambiProtocol)
+- **Documentation**: [docs.usecambi.com/](docs.usecambi.com/)
+- **Telegram**: [@usecambi](https://t.me/usecambi)
+- **Twitter**: [@usecambi](https://x.com/usecambi)
 
 ## ⚡ Performance
 
@@ -371,12 +341,6 @@ System performance benchmarks:
 
 ## 🔗 Related Projects
 
-- **[Cambi Protocol Core](https://github.com/cambi-protocol/core)**: Main protocol contracts
-- **[Cambi Frontend](https://github.com/cambi-protocol/frontend)**: User interface
-- **[Cambi SDK](https://github.com/cambi-protocol/sdk)**: Developer tools
-
----
-
-**Built with ❤️ by the Cambi Protocol team**
-
-*Democratizing access to high-yield emerging market assets through Bitcoin-backed innovation.*
+- **[Cambi Protocol Core](https://github.com/usecambi/cambi-contracts)**: Main protocol contracts
+- **[Cambi Liquidatoor](https://github.com/usecambi/cambi-liquidatoor)**: Liquidation sentry bot & UniV4 hooks
+- **[Cambi Frontend](https://github.com/canokaue/cambi-mvp)**: User interface
