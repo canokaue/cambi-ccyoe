@@ -37,7 +37,7 @@ The Cambi CCYOE Bot is an autonomous monitoring and execution system that:
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Viem Client   │────│   CCYOE Core    │────│   Oracle Data   │
-│   (Blockchain)  │    │   (Smart Contract) │    │   (Yield Info)  │
+│   (Blockchain)  │    │ (Smart Contract)│    │   (Yield Info)  │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │                       │                       │
          │              ┌─────────────────┐              │
