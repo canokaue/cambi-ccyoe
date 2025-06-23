@@ -342,4 +342,5 @@ System performance benchmarks:
 ## 🔗 Related Projects
 
 - **[Cambi Protocol Core](https://github.com/usecambi/cambi-contracts)**: Main protocol contracts
+- **[Cambi Liquidatoor](https://github.com/usecambi/cambi-liquidatoor)**: Liquidation sentry bot & UniV4 hooks
 - **[Cambi Frontend](https://github.com/canokaue/cambi-mvp)**: User interface
