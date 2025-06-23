@@ -126,7 +126,10 @@ export class Config {
     this.NODE_ENV = this.getEnvVar('NODE_ENV', 'development');
   }
 
-  private getEnvVar(key: string, defaultValue?: string): string {
+  /**
+   * Get environment variable with optional default value
+   */
+  public getEnvVar(key: string, defaultValue?: string): string {
     const value = process.env[key];
     if (value === undefined || value === '') {
       if (defaultValue !== undefined) {

@@ -143,7 +143,7 @@ export class Logger {
   /**
    * Log data source health check
    */
-  public logHealthCheck(source: string, status: 'HEALTHY' | 'UNHEALTHY', latency: number, error?: string): void {
+  public logHealthCheck(source: string, status: 'HEALTHY' | 'UNHEALTHY' | 'DEGRADED', latency: number, error?: string): void {
     const level = status === 'HEALTHY' ? 'debug' : 'warn';
     this.logger[level](`Data source health check: ${source}`, {
       status,
